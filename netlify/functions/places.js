@@ -1,304 +1,922 @@
-// Netlify Function:
-// /.netlify/functions/places
-//
-// Server-side proxy untuk OpenStreetMap Overpass.
-// Frontend tidak lagi menghubungi Overpass secara langsung.
+/*
+=========================================================
+NANGKRINGACEH V3
+NETLIFY FUNCTION
 
-const ENDPOINTS = [
-  "https://overpass.private.coffee/api/interpreter",
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter"
+Fungsi:
+- Proxy ke Overpass
+- Cache response
+- Pencarian sekitar
+- Pencarian seluruh Aceh
+=========================================================
+*/
+
+
+const OVERPASS_SERVERS = [
+
+    "https://overpass-api.de/api/interpreter",
+
+    "https://overpass.kumi.systems/api/interpreter",
+
+    "https://overpass.private.coffee/api/interpreter"
+
 ];
 
-const QUERIES = [
-  `
-  [out:json][timeout:60];
-  area["ISO3166-2"="ID-AC"]->.aceh;
-  (
-    nwr["amenity"="cafe"](area.aceh);
-    nwr["amenity"="coffee_shop"](area.aceh);
-    nwr["shop"="coffee"](area.aceh);
-    nwr["cuisine"="coffee"](area.aceh);
-    nwr["cuisine"="coffee_shop"](area.aceh);
-    nwr["name"~"coffee|kopi|warkop|warung kopi|kedai kopi",i](area.aceh);
-  );
-  out center tags;
-  `,
 
-  `
-  [out:json][timeout:60];
-  area["ISO3166-2"="ID-AC"]->.aceh;
-  (
-    nwr["amenity"="restaurant"](area.aceh);
-    nwr["amenity"="fast_food"](area.aceh);
-  );
-  out center tags;
-  `,
+/*
+   Cache di memory server.
 
-  `
-  [out:json][timeout:60];
-  area["ISO3166-2"="ID-AC"]->.aceh;
-  (
-    nwr["amenity"="bar"](area.aceh);
-    nwr["amenity"="pub"](area.aceh);
-  );
-  out center tags;
-  `,
+   Catatan:
+   Netlify Function bersifat serverless,
+   sehingga memory cache tidak permanen.
 
-  `
-  [out:json][timeout:60];
-  area["ISO3166-2"="ID-AC"]->.aceh;
-  (
-    nwr["tourism"="attraction"](area.aceh);
-    nwr["tourism"="viewpoint"](area.aceh);
-    nwr["tourism"="theme_park"](area.aceh);
-    nwr["tourism"="zoo"](area.aceh);
-  );
-  out center tags;
-  `
-];
+   Tetapi selama instance function masih hidup,
+   request berikutnya dapat menggunakan cache.
+*/
 
-function getCategory(tags = {}) {
-  const name = String(
-    tags.name ||
-    tags["name:id"] ||
-    tags["name:en"] ||
-    ""
-  ).toLowerCase();
+const cache = new Map();
 
-  if (
-    tags.amenity === "coffee_shop" ||
-    tags.shop === "coffee" ||
-    tags.cuisine === "coffee" ||
-    tags.cuisine === "coffee_shop" ||
-    name.includes("coffee") ||
-    name.includes("kopi") ||
-    name.includes("warkop") ||
-    name.includes("warung kopi") ||
-    name.includes("kedai kopi")
-  ) {
-    return "coffee";
-  }
 
-  if (tags.amenity === "cafe") return "cafe";
-  if (tags.amenity === "restaurant") return "restaurant";
-  if (tags.amenity === "fast_food") return "fast_food";
+const ACEH_BBOX =
+    "2.5,94.5,6.2,98.7";
 
-  if (
-    tags.amenity === "bar" ||
-    tags.amenity === "pub"
-  ) {
-    return "bar";
-  }
 
-  if (
-    tags.tourism === "attraction" ||
-    tags.tourism === "viewpoint" ||
-    tags.tourism === "theme_park" ||
-    tags.tourism === "zoo"
-  ) {
-    return "tourism";
-  }
+/* =====================================================
+   MAIN
+===================================================== */
 
-  return null;
-}
+exports.handler =
+async function(event){
 
-function getCoordinates(element) {
-  if (
-    typeof element.lat === "number" &&
-    typeof element.lon === "number"
-  ) {
-    return {
-      lat: element.lat,
-      lon: element.lon
-    };
-  }
+    try{
 
-  if (
-    element.center &&
-    typeof element.center.lat === "number" &&
-    typeof element.center.lon === "number"
-  ) {
-    return {
-      lat: element.center.lat,
-      lon: element.center.lon
-    };
-  }
+        const params =
+            event.queryStringParameters || {};
 
-  return null;
-}
 
-function getAddress(tags = {}) {
-  const parts = [
-    tags["addr:street"],
-    tags["addr:suburb"],
-    tags["addr:city"],
-    tags["addr:town"],
-    tags["addr:district"],
-    tags["addr:postcode"]
-  ].filter(Boolean);
+        const mode =
+            params.mode || "aceh";
 
-  return (
-    parts.join(", ") ||
-    tags["addr:full"] ||
-    tags["addr:place"] ||
-    "Aceh"
-  );
-}
 
-async function queryOverpass(query) {
-  let lastError = null;
+        /*
+           CACHE KEY
+        */
 
-  for (const endpoint of ENDPOINTS) {
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type":
-            "application/x-www-form-urlencoded;charset=UTF-8",
-          "User-Agent":
-            "NangkringAceh/1.0"
-        },
-        body:
-          "data=" +
-          encodeURIComponent(query)
-      });
+        let cacheKey;
 
-      if (!response.ok) {
-        throw new Error(
-          `${endpoint} HTTP ${response.status}`
+
+        if(
+            mode === "nearby"
+        ){
+
+            const lat =
+                Number(params.lat);
+
+            const lon =
+                Number(params.lon);
+
+            const radius =
+                Number(params.radius || 10);
+
+
+            if(
+                !Number.isFinite(lat) ||
+                !Number.isFinite(lon)
+            ){
+
+                return json(
+                    {
+                        error:
+                        "Koordinat tidak valid"
+                    },
+                    400
+                );
+
+            }
+
+
+            /*
+               Bulatkan koordinat supaya
+               request yang berdekatan bisa
+               menggunakan cache yang sama.
+            */
+
+            const roundedLat =
+                Math.round(
+                    lat * 100
+                ) / 100;
+
+
+            const roundedLon =
+                Math.round(
+                    lon * 100
+                ) / 100;
+
+
+            cacheKey =
+                `nearby-${roundedLat}-${roundedLon}-${radius}`;
+
+        }
+
+        else{
+
+            cacheKey =
+                "aceh-all";
+
+        }
+
+
+        /*
+           CACHE
+        */
+
+        const cached =
+            cache.get(
+                cacheKey
+            );
+
+
+        if(
+            cached &&
+            cached.expires >
+            Date.now()
+        ){
+
+            return json(
+                {
+                    places:
+                    cached.places,
+
+                    cached:true,
+
+                    updated:
+                    cached.updated
+                },
+                200,
+                {
+                    "Cache-Control":
+                    "public, max-age=1800"
+                }
+            );
+
+        }
+
+
+        /*
+           QUERY
+        */
+
+        let query;
+
+
+        if(
+            mode === "nearby"
+        ){
+
+            const lat =
+                Number(params.lat);
+
+            const lon =
+                Number(params.lon);
+
+            const radius =
+                Number(
+                    params.radius || 10
+                );
+
+
+            query =
+            nearbyQuery(
+                lat,
+                lon,
+                radius
+            );
+
+        }
+
+        else{
+
+            query =
+            acehQuery();
+
+        }
+
+
+        /*
+           AMBIL DATA
+        */
+
+        const data =
+            await fetchOverpass(
+                query
+            );
+
+
+        /*
+           NORMALIZE
+        */
+
+        const places =
+            normalize(
+                data.elements || []
+            );
+
+
+        /*
+           SIMPAN CACHE
+        */
+
+        const cacheTime =
+            mode === "aceh"
+            ?
+            1000 * 60 * 60 * 6
+            :
+            1000 * 60 * 30;
+
+
+        cache.set(
+            cacheKey,
+            {
+
+                places:
+
+                places,
+
+                expires:
+
+                Date.now() +
+                cacheTime,
+
+                updated:
+
+                new Date()
+                .toISOString()
+
+            }
         );
-      }
 
-      const data = await response.json();
 
-      if (!data || !Array.isArray(data.elements)) {
-        throw new Error(
-          "Response Overpass tidak valid"
+        /*
+           RESPONSE
+        */
+
+        return json(
+            {
+
+                places:
+
+                places,
+
+                cached:false,
+
+                updated:
+
+                new Date()
+                .toISOString()
+
+            },
+
+            200,
+
+            {
+
+                "Cache-Control":
+                mode === "aceh"
+                ?
+                "public, max-age=3600, s-maxage=21600"
+                :
+                "public, max-age=300, s-maxage=1800"
+
+            }
+
         );
-      }
 
-      return data.elements;
-
-    } catch (error) {
-      console.error(
-        "Overpass gagal:",
-        endpoint,
-        error
-      );
-      lastError = error;
     }
-  }
 
-  throw lastError ||
-    new Error("Semua server Overpass gagal");
-}
+    catch(error){
 
-async function buildPlaces() {
-  const elements = [];
+        console.error(
+            error
+        );
 
-  for (const query of QUERIES) {
-    try {
-      const result =
-        await queryOverpass(query);
 
-      elements.push(...result);
-    } catch (error) {
-      console.error(
-        "Satu kategori gagal:",
-        error
-      );
+        return json(
+            {
+                error:
+                "Gagal mengambil data tempat",
+                message:
+                error.message
+            },
+            500
+        );
+
     }
-  }
 
-  const unique = new Map();
-
-  for (const element of elements) {
-    const tags = element.tags || {};
-    const coords = getCoordinates(element);
-    const category = getCategory(tags);
-
-    if (!coords || !category) continue;
-
-    const name =
-      tags.name ||
-      tags["name:id"] ||
-      tags["name:en"];
-
-    if (!name) continue;
-
-    const key =
-      String(name).trim().toLowerCase() +
-      "|" +
-      coords.lat.toFixed(5) +
-      "|" +
-      coords.lon.toFixed(5);
-
-    if (unique.has(key)) continue;
-
-    unique.set(key, {
-      id: `${element.type}/${element.id}`,
-      name: String(name),
-      lat: coords.lat,
-      lon: coords.lon,
-      category,
-      address: getAddress(tags),
-      city:
-        tags["addr:city"] ||
-        tags["addr:town"] ||
-        tags["addr:district"] ||
-        "",
-      phone:
-        tags.phone ||
-        tags["contact:phone"] ||
-        "",
-      website:
-        tags.website ||
-        tags["contact:website"] ||
-        ""
-    });
-  }
-
-  return Array.from(unique.values())
-    .sort((a, b) =>
-      a.name.localeCompare(b.name, "id")
-    );
-}
-
-exports.handler = async function () {
-  try {
-    const places = await buildPlaces();
-
-    return {
-      statusCode: 200,
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control":
-          "public, max-age=600, s-maxage=600"
-      },
-      body: JSON.stringify({
-        success: true,
-        count: places.length,
-        updatedAt: new Date().toISOString(),
-        places
-      })
-    };
-
-  } catch (error) {
-    console.error(error);
-
-    return {
-      statusCode: 502,
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": "no-store"
-      },
-      body: JSON.stringify({
-        success: false,
-        error: error.message ||
-          "Gagal mengambil data OpenStreetMap"
-      })
-    };
-  }
 };
 
+
+/* =====================================================
+   ACEH QUERY
+===================================================== */
+
+function acehQuery(){
+
+    return `
+
+[out:json][timeout:180];
+
+(
+    nwr(${ACEH_BBOX})["amenity"="cafe"];
+
+    nwr(${ACEH_BBOX})["amenity"="restaurant"];
+
+    nwr(${ACEH_BBOX})["amenity"="fast_food"];
+
+    nwr(${ACEH_BBOX})["amenity"="coffee_shop"];
+
+    nwr(${ACEH_BBOX})["shop"="coffee"];
+);
+
+out center tags;
+
+`;
+
+}
+
+
+/* =====================================================
+   NEARBY QUERY
+===================================================== */
+
+function nearbyQuery(
+    lat,
+    lon,
+    radiusKm
+){
+
+    const meters =
+        Math.min(
+            Math.max(
+                radiusKm * 1000,
+                500
+            ),
+            50000
+        );
+
+
+    return `
+
+[out:json][timeout:60];
+
+(
+    nwr(
+        around:${meters},
+        ${lat},
+        ${lon}
+    )["amenity"="cafe"];
+
+    nwr(
+        around:${meters},
+        ${lat},
+        ${lon}
+    )["amenity"="restaurant"];
+
+    nwr(
+        around:${meters},
+        ${lat},
+        ${lon}
+    )["amenity"="fast_food"];
+
+    nwr(
+        around:${meters},
+        ${lat},
+        ${lon}
+    )["amenity"="coffee_shop"];
+
+    nwr(
+        around:${meters},
+        ${lat},
+        ${lon}
+    )["shop"="coffee"];
+);
+
+out center tags;
+
+`;
+
+}
+
+
+/* =====================================================
+   OVERPASS
+===================================================== */
+
+async function fetchOverpass(
+    query
+){
+
+    let lastError;
+
+
+    for(
+        const server
+        of OVERPASS_SERVERS
+    ){
+
+        try{
+
+            const controller =
+                new AbortController();
+
+
+            const timeout =
+                setTimeout(
+                    () =>
+                    controller.abort(),
+                    190000
+                );
+
+
+            const response =
+                await fetch(
+                    server,
+                    {
+
+                        method:"POST",
+
+                        headers:{
+                            "Content-Type":
+                            "text/plain;charset=UTF-8"
+                        },
+
+                        body:query,
+
+                        signal:
+                        controller.signal
+
+                    }
+                );
+
+
+            clearTimeout(
+                timeout
+            );
+
+
+            if(
+                !response.ok
+            ){
+
+                throw new Error(
+                    `Overpass HTTP ${response.status}`
+                );
+
+            }
+
+
+            return await response.json();
+
+        }
+
+        catch(error){
+
+            console.error(
+                "Overpass failed:",
+                server,
+                error
+            );
+
+
+            lastError =
+                error;
+
+        }
+
+    }
+
+
+    throw(
+        lastError ||
+        new Error(
+            "Semua server Overpass gagal"
+        )
+    );
+
+}
+
+
+/* =====================================================
+   NORMALIZE
+===================================================== */
+
+function normalize(
+    elements
+){
+
+    const result=[];
+
+    const seen=
+        new Set();
+
+
+    for(
+        const element
+        of elements
+    ){
+
+        const id=
+            `${element.type}-${element.id}`;
+
+
+        if(
+            seen.has(id)
+        )
+            continue;
+
+
+        seen.add(id);
+
+
+        const tags=
+            element.tags || {};
+
+
+        const lat=
+            Number(
+                element.lat ??
+                element.center?.lat
+            );
+
+
+        const lon=
+            Number(
+                element.lon ??
+                element.center?.lon
+            );
+
+
+        if(
+            !Number.isFinite(lat) ||
+            !Number.isFinite(lon)
+        ){
+
+            continue;
+
+        }
+
+
+        /*
+           Tempat tanpa nama masih disimpan,
+           tetapi diberikan nama yang jelas.
+        */
+
+        const name=
+            tags.name ||
+            tags["name:id"] ||
+            tags["name:en"] ||
+            "Tempat tanpa nama";
+
+
+        result.push({
+
+            id:id,
+
+            name:
+            clean(name),
+
+            category:
+            getCategory(tags),
+
+            address:
+            getAddress(tags),
+
+            lat:lat,
+
+            lon:lon
+
+        });
+
+    }
+
+
+    /*
+       Hapus duplikasi berdasarkan
+       nama + koordinat yang sangat dekat.
+    */
+
+    return deduplicate(
+        result
+    );
+
+}
+
+
+/* =====================================================
+   CATEGORY
+===================================================== */
+
+function getCategory(
+    tags
+){
+
+    if(
+        tags.amenity ===
+        "coffee_shop"
+    )
+        return "coffee";
+
+
+    if(
+        tags.shop ===
+        "coffee"
+    )
+        return "coffee";
+
+
+    if(
+        tags.amenity ===
+        "cafe"
+    )
+        return "cafe";
+
+
+    if(
+        tags.amenity ===
+        "restaurant"
+    )
+        return "restaurant";
+
+
+    if(
+        tags.amenity ===
+        "fast_food"
+    )
+        return "fast_food";
+
+
+    return "other";
+
+}
+
+
+/* =====================================================
+   ADDRESS
+===================================================== */
+
+function getAddress(
+    tags
+){
+
+    const fields=[
+
+        "addr:housenumber",
+
+        "addr:street",
+
+        "addr:place",
+
+        "addr:suburb",
+
+        "addr:village",
+
+        "addr:town",
+
+        "addr:city",
+
+        "addr:county",
+
+        "addr:state"
+
+    ];
+
+
+    const result=[];
+
+
+    for(
+        const field
+        of fields
+    ){
+
+        const value=
+            tags[field];
+
+
+        if(
+            value &&
+            !result.includes(value)
+        ){
+
+            result.push(value);
+
+        }
+
+    }
+
+
+    return result.length
+        ?
+        result.join(", ")
+        :
+        "Alamat belum tersedia";
+
+}
+
+
+/* =====================================================
+   DEDUPLICATE
+===================================================== */
+
+function deduplicate(
+    places
+){
+
+    const result=[];
+
+    const seen=
+        new Map();
+
+
+    for(
+        const place
+        of places
+    ){
+
+        const key=
+            (
+                place.name
+                .toLowerCase()
+                .replace(
+                    /\s+/g,
+                    " "
+                )
+                .trim()
+            );
+
+
+        if(
+            !seen.has(key)
+        ){
+
+            seen.set(
+                key,
+                place
+            );
+
+            result.push(
+                place
+            );
+
+            continue;
+
+        }
+
+
+        const previous=
+            seen.get(key);
+
+
+        const distance=
+            distanceMeters(
+                previous.lat,
+                previous.lon,
+                place.lat,
+                place.lon
+            );
+
+
+        /*
+           Kalau nama sama dan
+           lokasinya sangat dekat,
+           anggap duplikat.
+        */
+
+        if(
+            distance > 30
+        ){
+
+            result.push(
+                place
+            );
+
+        }
+
+    }
+
+
+    return result;
+
+}
+
+
+/* =====================================================
+   DISTANCE
+===================================================== */
+
+function distanceMeters(
+    lat1,
+    lon1,
+    lat2,
+    lon2
+){
+
+    const R=6371000;
+
+
+    const dLat=
+        (
+            lat2-lat1
+        )*
+        Math.PI/180;
+
+
+    const dLon=
+        (
+            lon2-lon1
+        )*
+        Math.PI/180;
+
+
+    const a=
+        Math.sin(dLat/2)**
+        2 +
+
+        Math.cos(
+            lat1*
+            Math.PI/
+            180
+        )*
+
+        Math.cos(
+            lat2*
+            Math.PI/
+            180
+        )*
+
+        Math.sin(dLon/2)**
+        2;
+
+
+    return(
+        R*
+        2*
+        Math.atan2(
+            Math.sqrt(a),
+            Math.sqrt(1-a)
+        )
+    );
+
+}
+
+
+/* =====================================================
+   CLEAN
+===================================================== */
+
+function clean(
+    value
+){
+
+    return String(value)
+        .replace(
+            /\s+/g,
+            " "
+        )
+        .trim();
+
+}
+
+
+/* =====================================================
+   JSON
+===================================================== */
+
+function json(
+    data,
+    statusCode=200,
+    headers={}
+){
+
+    return{
+
+        statusCode,
+
+        headers:{
+            "Content-Type":
+            "application/json",
+
+            "Access-Control-Allow-Origin":
+            "*",
+
+            ...headers
+
+        },
+
+        body:
+        JSON.stringify(
+            data
+        )
+
+    };
+
+          }
