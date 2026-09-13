@@ -1,16 +1,25 @@
 /*
 =========================================================
-NANGKRINGACEH V3
-NETLIFY FUNCTION
+ NANGKRINGACEH V3
+ NETLIFY FUNCTION
+=========================================================
 
-Fungsi:
-- Proxy ke Overpass
-- Cache response
-- Pencarian sekitar
-- Pencarian seluruh Aceh
+Frontend:
+    /.netlify/functions/places
+
+Function ini menjadi perantara antara website
+dengan OpenStreetMap Overpass API.
+
+Mode:
+    nearby
+    aceh
 =========================================================
 */
 
+
+/* ======================================================
+   OVERPASS SERVERS
+====================================================== */
 
 const OVERPASS_SERVERS = [
 
@@ -23,291 +32,102 @@ const OVERPASS_SERVERS = [
 ];
 
 
+/* ======================================================
+   KONFIGURASI
+====================================================== */
+
+const MAX_NEARBY_RADIUS_KM = 10;
+
+
 /*
-   Cache di memory server.
+   Query kategori tempat nongkrong.
 
-   Catatan:
-   Netlify Function bersifat serverless,
-   sehingga memory cache tidak permanen.
-
-   Tetapi selama instance function masih hidup,
-   request berikutnya dapat menggunakan cache.
+   cafe
+   restaurant
+   fast_food
+   coffee_shop
+   shop=coffee
 */
 
-const cache = new Map();
+const PLACE_QUERY = `
+    ["amenity"~"^(cafe|restaurant|fast_food|coffee_shop)$"]
+`;
+
+const COFFEE_QUERY = `
+    ["shop"="coffee"]
+`;
 
 
-const ACEH_BBOX =
-    "2.5,94.5,6.2,98.7";
+/* ======================================================
+   MAIN HANDLER
+====================================================== */
 
+exports.handler = async function(event) {
 
-/* =====================================================
-   MAIN
-===================================================== */
-
-exports.handler =
-async function(event){
-
-    try{
+    try {
 
         const params =
             event.queryStringParameters || {};
 
 
         const mode =
-            params.mode || "aceh";
+            params.mode || "nearby";
 
 
-        /*
-           CACHE KEY
-        */
+        /* ==============================================
+           MODE NEARBY
+        ============================================== */
 
-        let cacheKey;
-
-
-        if(
+        if (
             mode === "nearby"
-        ){
+        ) {
 
-            const lat =
-                Number(params.lat);
-
-            const lon =
-                Number(params.lon);
-
-            const radius =
-                Number(params.radius || 10);
-
-
-            if(
-                !Number.isFinite(lat) ||
-                !Number.isFinite(lon)
-            ){
-
-                return json(
-                    {
-                        error:
-                        "Koordinat tidak valid"
-                    },
-                    400
-                );
-
-            }
-
-
-            /*
-               Bulatkan koordinat supaya
-               request yang berdekatan bisa
-               menggunakan cache yang sama.
-            */
-
-            const roundedLat =
-                Math.round(
-                    lat * 100
-                ) / 100;
-
-
-            const roundedLon =
-                Math.round(
-                    lon * 100
-                ) / 100;
-
-
-            cacheKey =
-                `nearby-${roundedLat}-${roundedLon}-${radius}`;
-
-        }
-
-        else{
-
-            cacheKey =
-                "aceh-all";
-
-        }
-
-
-        /*
-           CACHE
-        */
-
-        const cached =
-            cache.get(
-                cacheKey
-            );
-
-
-        if(
-            cached &&
-            cached.expires >
-            Date.now()
-        ){
-
-            return json(
-                {
-                    places:
-                    cached.places,
-
-                    cached:true,
-
-                    updated:
-                    cached.updated
-                },
-                200,
-                {
-                    "Cache-Control":
-                    "public, max-age=1800"
-                }
+            return await handleNearby(
+                params
             );
 
         }
 
 
-        /*
-           QUERY
-        */
+        /* ==============================================
+           MODE ACEH
+        ============================================== */
 
-        let query;
-
-
-        if(
-            mode === "nearby"
-        ){
-
-            const lat =
-                Number(params.lat);
-
-            const lon =
-                Number(params.lon);
-
-            const radius =
-                Number(
-                    params.radius || 10
-                );
-
-
-            query =
-            nearbyQuery(
-                lat,
-                lon,
-                radius
-            );
-
-        }
-
-        else{
-
-            query =
-            acehQuery();
-
-        }
-
-
-        /*
-           AMBIL DATA
-        */
-
-        const data =
-            await fetchOverpass(
-                query
-            );
-
-
-        /*
-           NORMALIZE
-        */
-
-        const places =
-            normalize(
-                data.elements || []
-            );
-
-
-        /*
-           SIMPAN CACHE
-        */
-
-        const cacheTime =
+        if (
             mode === "aceh"
-            ?
-            1000 * 60 * 60 * 6
-            :
-            1000 * 60 * 30;
+        ) {
+
+            return await handleAceh();
+
+        }
 
 
-        cache.set(
-            cacheKey,
+        return jsonResponse(
+            400,
             {
-
-                places:
-
-                places,
-
-                expires:
-
-                Date.now() +
-                cacheTime,
-
-                updated:
-
-                new Date()
-                .toISOString()
-
+                error:
+                    "Mode tidak valid."
             }
-        );
-
-
-        /*
-           RESPONSE
-        */
-
-        return json(
-            {
-
-                places:
-
-                places,
-
-                cached:false,
-
-                updated:
-
-                new Date()
-                .toISOString()
-
-            },
-
-            200,
-
-            {
-
-                "Cache-Control":
-                mode === "aceh"
-                ?
-                "public, max-age=3600, s-maxage=21600"
-                :
-                "public, max-age=300, s-maxage=1800"
-
-            }
-
         );
 
     }
 
-    catch(error){
+    catch (error) {
 
         console.error(
+            "places function error:",
             error
         );
 
 
-        return json(
+        return jsonResponse(
+            500,
             {
                 error:
-                "Gagal mengambil data tempat",
-                message:
-                error.message
-            },
-            500
+                    "Gagal mengambil data tempat.",
+                detail:
+                    error.message
+            }
         );
 
     }
@@ -315,115 +135,290 @@ async function(event){
 };
 
 
-/* =====================================================
-   ACEH QUERY
-===================================================== */
+/* ======================================================
+   NEARBY
+====================================================== */
 
-function acehQuery(){
+async function handleNearby(
+    params
+) {
 
-    return `
+    const lat =
+        Number(
+            params.lat
+        );
+
+
+    const lon =
+        Number(
+            params.lon
+        );
+
+
+    let radius =
+        Number(
+            params.radius || 1
+        );
+
+
+    /*
+       Validasi koordinat
+    */
+
+    if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lon)
+    ) {
+
+        return jsonResponse(
+            400,
+            {
+                error:
+                    "Koordinat GPS tidak valid."
+            }
+        );
+
+    }
+
+
+    /*
+       Batasi radius.
+    */
+
+    radius =
+        Math.max(
+            0.5,
+            Math.min(
+                radius,
+                MAX_NEARBY_RADIUS_KM
+            )
+        );
+
+
+    const radiusMeters =
+        Math.round(
+            radius * 1000
+        );
+
+
+    /*
+       Query Overpass.
+    */
+
+    const query = `
+
+[out:json][timeout:45];
+
+(
+    nwr(
+        around:${radiusMeters},
+        ${lat},
+        ${lon}
+    )
+    ${PLACE_QUERY};
+
+    nwr(
+        around:${radiusMeters},
+        ${lat},
+        ${lon}
+    )
+    ${COFFEE_QUERY};
+);
+
+out center tags;
+
+`;
+
+
+    const data =
+        await fetchOverpass(
+            query
+        );
+
+
+    const elements =
+        cleanElements(
+            data.elements || []
+        );
+
+
+    return jsonResponse(
+        200,
+        {
+            mode:
+                "nearby",
+
+            radius:
+                radius,
+
+            count:
+                elements.length,
+
+            elements:
+                elements
+        }
+    );
+
+}
+
+
+/* ======================================================
+   SELURUH ACEH
+====================================================== */
+
+async function handleAceh() {
+
+    /*
+       Cari boundary Provinsi Aceh
+       menggunakan ISO3166-2 ID-AC.
+    */
+
+    const query = `
+
+[out:json][timeout:180];
+
+area
+    ["boundary"="administrative"]
+    ["ISO3166-2"="ID-AC"]
+    ->.aceh;
+
+(
+    nwr(area.aceh)
+        ${PLACE_QUERY};
+
+    nwr(area.aceh)
+        ${COFFEE_QUERY};
+);
+
+out center tags;
+
+`;
+
+
+    try {
+
+        const data =
+            await fetchOverpass(
+                query
+            );
+
+
+        const elements =
+            cleanElements(
+                data.elements || []
+            );
+
+
+        return jsonResponse(
+            200,
+            {
+
+                mode:
+                    "aceh",
+
+                count:
+                    elements.length,
+
+                elements:
+                    elements
+
+            }
+        );
+
+    }
+
+    catch (error) {
+
+        console.warn(
+            "Area Aceh query gagal:",
+            error.message
+        );
+
+
+        /*
+           FALLBACK BOUNDING BOX ACEH.
+
+           Selatan: 2.5
+           Barat:   94.5
+           Utara:   6.2
+           Timur:   98.7
+        */
+
+        const fallbackQuery = `
 
 [out:json][timeout:180];
 
 (
-    nwr(${ACEH_BBOX})["amenity"="cafe"];
+    nwr
+        (2.5,94.5,6.2,98.7)
+        ${PLACE_QUERY};
 
-    nwr(${ACEH_BBOX})["amenity"="restaurant"];
-
-    nwr(${ACEH_BBOX})["amenity"="fast_food"];
-
-    nwr(${ACEH_BBOX})["amenity"="coffee_shop"];
-
-    nwr(${ACEH_BBOX})["shop"="coffee"];
+    nwr
+        (2.5,94.5,6.2,98.7)
+        ${COFFEE_QUERY};
 );
 
 out center tags;
 
 `;
 
-}
+
+        const fallbackData =
+            await fetchOverpass(
+                fallbackQuery
+            );
 
 
-/* =====================================================
-   NEARBY QUERY
-===================================================== */
+        const elements =
+            cleanElements(
+                fallbackData.elements || []
+            );
 
-function nearbyQuery(
-    lat,
-    lon,
-    radiusKm
-){
 
-    const meters =
-        Math.min(
-            Math.max(
-                radiusKm * 1000,
-                500
-            ),
-            50000
+        return jsonResponse(
+            200,
+            {
+
+                mode:
+                    "aceh-fallback",
+
+                count:
+                    elements.length,
+
+                elements:
+                    elements
+
+            }
         );
 
-
-    return `
-
-[out:json][timeout:60];
-
-(
-    nwr(
-        around:${meters},
-        ${lat},
-        ${lon}
-    )["amenity"="cafe"];
-
-    nwr(
-        around:${meters},
-        ${lat},
-        ${lon}
-    )["amenity"="restaurant"];
-
-    nwr(
-        around:${meters},
-        ${lat},
-        ${lon}
-    )["amenity"="fast_food"];
-
-    nwr(
-        around:${meters},
-        ${lat},
-        ${lon}
-    )["amenity"="coffee_shop"];
-
-    nwr(
-        around:${meters},
-        ${lat},
-        ${lon}
-    )["shop"="coffee"];
-);
-
-out center tags;
-
-`;
+    }
 
 }
 
 
-/* =====================================================
-   OVERPASS
-===================================================== */
+/* ======================================================
+   FETCH OVERPASS
+====================================================== */
 
 async function fetchOverpass(
     query
-){
+) {
 
-    let lastError;
+    let lastError =
+        null;
 
 
-    for(
-        const server
-        of OVERPASS_SERVERS
-    ){
+    for (
+        const server of OVERPASS_SERVERS
+    ) {
 
-        try{
+        try {
+
+            console.log(
+                "Menghubungi Overpass:",
+                server
+            );
+
 
             const controller =
                 new AbortController();
@@ -431,8 +426,11 @@ async function fetchOverpass(
 
             const timeout =
                 setTimeout(
-                    () =>
-                    controller.abort(),
+                    function() {
+
+                        controller.abort();
+
+                    },
                     190000
                 );
 
@@ -442,17 +440,23 @@ async function fetchOverpass(
                     server,
                     {
 
-                        method:"POST",
+                        method:
+                            "POST",
 
-                        headers:{
-                            "Content-Type":
-                            "text/plain;charset=UTF-8"
-                        },
+                        headers:
+                            {
+                                "Content-Type":
+                                    "text/plain;charset=UTF-8",
 
-                        body:query,
+                                "User-Agent":
+                                    "NangkringAceh/3.0"
+                            },
+
+                        body:
+                            query,
 
                         signal:
-                        controller.signal
+                            controller.signal
 
                     }
                 );
@@ -463,9 +467,9 @@ async function fetchOverpass(
             );
 
 
-            if(
+            if (
                 !response.ok
-            ){
+            ) {
 
                 throw new Error(
                     `Overpass HTTP ${response.status}`
@@ -474,16 +478,34 @@ async function fetchOverpass(
             }
 
 
-            return await response.json();
+            const data =
+                await response.json();
+
+
+            if (
+                !data ||
+                !Array.isArray(
+                    data.elements
+                )
+            ) {
+
+                throw new Error(
+                    "Data Overpass tidak valid."
+                );
+
+            }
+
+
+            return data;
 
         }
 
-        catch(error){
+        catch (error) {
 
-            console.error(
-                "Overpass failed:",
+            console.warn(
+                "Overpass gagal:",
                 server,
-                error
+                error.message
             );
 
 
@@ -495,70 +517,88 @@ async function fetchOverpass(
     }
 
 
-    throw(
+    throw (
         lastError ||
         new Error(
-            "Semua server Overpass gagal"
+            "Semua server Overpass gagal."
         )
     );
 
 }
 
 
-/* =====================================================
-   NORMALIZE
-===================================================== */
+/* ======================================================
+   CLEAN ELEMENTS
+====================================================== */
 
-function normalize(
+function cleanElements(
     elements
-){
+) {
 
-    const result=[];
+    const result = [];
 
-    const seen=
-        new Set();
-
-
-    for(
-        const element
-        of elements
-    ){
-
-        const id=
-            `${element.type}-${element.id}`;
+    const seen = new Set();
 
 
-        if(
-            seen.has(id)
-        )
+    for (
+        const element of elements
+    ) {
+
+        if (
+            !element
+        ) {
+
             continue;
 
-
-        seen.add(id);
-
-
-        const tags=
-            element.tags || {};
+        }
 
 
-        const lat=
+        const key =
+            `${element.type}_${element.id}`;
+
+
+        if (
+            seen.has(key)
+        ) {
+
+            continue;
+
+        }
+
+
+        seen.add(
+            key
+        );
+
+
+        /*
+           Pastikan punya koordinat.
+
+           Node:
+               lat / lon
+
+           Way / Relation:
+               center.lat / center.lon
+        */
+
+        const lat =
             Number(
                 element.lat ??
                 element.center?.lat
             );
 
 
-        const lon=
+        const lon =
             Number(
                 element.lon ??
                 element.center?.lon
             );
 
 
-        if(
+        if (
             !Number.isFinite(lat) ||
             !Number.isFinite(lon)
-        ){
+        ) {
 
             continue;
 
@@ -566,240 +606,45 @@ function normalize(
 
 
         /*
-           Tempat tanpa nama masih disimpan,
-           tetapi diberikan nama yang jelas.
+           Hanya simpan data yang
+           punya tags.
         */
 
-        const name=
-            tags.name ||
-            tags["name:id"] ||
-            tags["name:en"] ||
-            "Tempat tanpa nama";
+        if (
+            !element.tags
+        ) {
 
+            continue;
+
+        }
+
+
+        /*
+           Tambahkan koordinat standar
+           supaya frontend lebih mudah.
+        */
 
         result.push({
 
-            id:id,
+            type:
+                element.type,
 
-            name:
-            clean(name),
+            id:
+                element.id,
 
-            category:
-            getCategory(tags),
+            lat:
+                lat,
 
-            address:
-            getAddress(tags),
+            lon:
+                lon,
 
-            lat:lat,
+            center:
+                element.center,
 
-            lon:lon
+            tags:
+                element.tags
 
         });
-
-    }
-
-
-    /*
-       Hapus duplikasi berdasarkan
-       nama + koordinat yang sangat dekat.
-    */
-
-    return deduplicate(
-        result
-    );
-
-}
-
-
-/* =====================================================
-   CATEGORY
-===================================================== */
-
-function getCategory(
-    tags
-){
-
-    if(
-        tags.amenity ===
-        "coffee_shop"
-    )
-        return "coffee";
-
-
-    if(
-        tags.shop ===
-        "coffee"
-    )
-        return "coffee";
-
-
-    if(
-        tags.amenity ===
-        "cafe"
-    )
-        return "cafe";
-
-
-    if(
-        tags.amenity ===
-        "restaurant"
-    )
-        return "restaurant";
-
-
-    if(
-        tags.amenity ===
-        "fast_food"
-    )
-        return "fast_food";
-
-
-    return "other";
-
-}
-
-
-/* =====================================================
-   ADDRESS
-===================================================== */
-
-function getAddress(
-    tags
-){
-
-    const fields=[
-
-        "addr:housenumber",
-
-        "addr:street",
-
-        "addr:place",
-
-        "addr:suburb",
-
-        "addr:village",
-
-        "addr:town",
-
-        "addr:city",
-
-        "addr:county",
-
-        "addr:state"
-
-    ];
-
-
-    const result=[];
-
-
-    for(
-        const field
-        of fields
-    ){
-
-        const value=
-            tags[field];
-
-
-        if(
-            value &&
-            !result.includes(value)
-        ){
-
-            result.push(value);
-
-        }
-
-    }
-
-
-    return result.length
-        ?
-        result.join(", ")
-        :
-        "Alamat belum tersedia";
-
-}
-
-
-/* =====================================================
-   DEDUPLICATE
-===================================================== */
-
-function deduplicate(
-    places
-){
-
-    const result=[];
-
-    const seen=
-        new Map();
-
-
-    for(
-        const place
-        of places
-    ){
-
-        const key=
-            (
-                place.name
-                .toLowerCase()
-                .replace(
-                    /\s+/g,
-                    " "
-                )
-                .trim()
-            );
-
-
-        if(
-            !seen.has(key)
-        ){
-
-            seen.set(
-                key,
-                place
-            );
-
-            result.push(
-                place
-            );
-
-            continue;
-
-        }
-
-
-        const previous=
-            seen.get(key);
-
-
-        const distance=
-            distanceMeters(
-                previous.lat,
-                previous.lon,
-                place.lat,
-                place.lon
-            );
-
-
-        /*
-           Kalau nama sama dan
-           lokasinya sangat dekat,
-           anggap duplikat.
-        */
-
-        if(
-            distance > 30
-        ){
-
-            result.push(
-                place
-            );
-
-        }
 
     }
 
@@ -809,114 +654,39 @@ function deduplicate(
 }
 
 
-/* =====================================================
-   DISTANCE
-===================================================== */
+/* ======================================================
+   JSON RESPONSE
+====================================================== */
 
-function distanceMeters(
-    lat1,
-    lon1,
-    lat2,
-    lon2
-){
+function jsonResponse(
+    statusCode,
+    body
+) {
 
-    const R=6371000;
+    return {
 
+        statusCode:
+            statusCode,
 
-    const dLat=
-        (
-            lat2-lat1
-        )*
-        Math.PI/180;
+        headers:
+            {
 
+                "Content-Type":
+                    "application/json; charset=utf-8",
 
-    const dLon=
-        (
-            lon2-lon1
-        )*
-        Math.PI/180;
+                "Cache-Control":
+                    "public, max-age=300, s-maxage=300",
 
+                "Access-Control-Allow-Origin":
+                    "*"
 
-    const a=
-        Math.sin(dLat/2)**
-        2 +
-
-        Math.cos(
-            lat1*
-            Math.PI/
-            180
-        )*
-
-        Math.cos(
-            lat2*
-            Math.PI/
-            180
-        )*
-
-        Math.sin(dLon/2)**
-        2;
-
-
-    return(
-        R*
-        2*
-        Math.atan2(
-            Math.sqrt(a),
-            Math.sqrt(1-a)
-        )
-    );
-
-}
-
-
-/* =====================================================
-   CLEAN
-===================================================== */
-
-function clean(
-    value
-){
-
-    return String(value)
-        .replace(
-            /\s+/g,
-            " "
-        )
-        .trim();
-
-}
-
-
-/* =====================================================
-   JSON
-===================================================== */
-
-function json(
-    data,
-    statusCode=200,
-    headers={}
-){
-
-    return{
-
-        statusCode,
-
-        headers:{
-            "Content-Type":
-            "application/json",
-
-            "Access-Control-Allow-Origin":
-            "*",
-
-            ...headers
-
-        },
+            },
 
         body:
-        JSON.stringify(
-            data
-        )
+            JSON.stringify(
+                body
+            )
 
     };
 
-          }
+                }
