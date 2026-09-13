@@ -1,56 +1,3226 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>NangkringAceh</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>NangkringAceh - Tempat Nongkrong di Aceh</title>
+
+    <!-- Leaflet -->
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    >
+
+    <!-- Marker Cluster -->
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+    >
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: #090b0a;
+            color: #fff;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+        }
+
+        .app {
+            width: 100%;
+            max-width: 1500px;
+            margin: auto;
+        }
+
+        /* =========================
+           HEADER
+        ========================= */
+
+        header {
+            padding: 18px 16px 12px;
+            background: #0c0f0d;
+            border-bottom: 1px solid #202420;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+        }
+
+        .brand-left h1 {
+            margin: 0;
+            color: #22d68a;
+            font-size: 25px;
+            font-weight: 800;
+        }
+
+        .brand-left p {
+            margin: 4px 0 0;
+            color: #929892;
+            font-size: 12px;
+        }
+
+        .gps-status {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 11px;
+            border-radius: 10px;
+            background: #141814;
+            border: 1px solid #252a25;
+            color: #aaa;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        .gps-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #777;
+        }
+
+        .gps-dot.active {
+            background: #22d68a;
+            box-shadow: 0 0 8px #22d68a;
+        }
+
+        /* =========================
+           SEARCH
+        ========================= */
+
+        .search-area {
+            display: flex;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .search-box {
+            flex: 1;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            height: 44px;
+            padding: 0 45px 0 14px;
+            border-radius: 12px;
+            border: 1px solid #282d29;
+            background: #151815;
+            color: #fff;
+            outline: none;
+            font-size: 14px;
+        }
+
+        .search-box input:focus {
+            border-color: #22d68a;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 14px;
+            top: 12px;
+            color: #777;
+            font-size: 18px;
+        }
+
+        button {
+            border: 0;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .btn {
+            height: 44px;
+            padding: 0 15px;
+            border-radius: 12px;
+            background: #1c211d;
+            color: #fff;
+            border: 1px solid #2b302c;
+            font-size: 13px;
+        }
+
+        .btn:hover {
+            background: #252b26;
+        }
+
+        .btn-green {
+            background: #16c77d;
+            color: #03150d;
+            font-weight: 800;
+            border-color: #16c77d;
+        }
+
+        .btn-green:hover {
+            background: #20e18d;
+        }
+
+        /* =========================
+           MODE
+        ========================= */
+
+        .mode-area {
+            display: flex;
+            gap: 7px;
+            margin-top: 12px;
+            overflow-x: auto;
+            padding-bottom: 2px;
+        }
+
+        .mode-btn {
+            flex: 0 0 auto;
+            padding: 9px 13px;
+            border-radius: 10px;
+            background: #151815;
+            color: #999;
+            border: 1px solid #282d29;
+            font-size: 12px;
+        }
+
+        .mode-btn.active {
+            color: #04150d;
+            background: #22d68a;
+            border-color: #22d68a;
+            font-weight: 800;
+        }
+
+        /* =========================
+           FILTER
+        ========================= */
+
+        .filter-area {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+            overflow-x: auto;
+            padding-bottom: 3px;
+        }
+
+        .filter-btn {
+            flex: 0 0 auto;
+            padding: 7px 11px;
+            border-radius: 999px;
+            background: #121512;
+            color: #999;
+            border: 1px solid #282d29;
+            font-size: 11px;
+        }
+
+        .filter-btn.active {
+            background: #183a2b;
+            color: #35df96;
+            border-color: #236747;
+        }
+
+        /* =========================
+           RADIUS
+        ========================= */
+
+        .radius-area {
+            display: flex;
+            gap: 6px;
+            margin-top: 9px;
+            align-items: center;
+            overflow-x: auto;
+        }
+
+        .radius-label {
+            font-size: 11px;
+            color: #777;
+            margin-right: 2px;
+        }
+
+        .radius-btn {
+            padding: 6px 10px;
+            border-radius: 8px;
+            background: #141714;
+            border: 1px solid #282d29;
+            color: #888;
+            font-size: 10px;
+            flex: 0 0 auto;
+        }
+
+        .radius-btn.active {
+            background: #22d68a;
+            color: #06150e;
+            border-color: #22d68a;
+            font-weight: 800;
+        }
+
+        .radius-area.disabled {
+            opacity: 0.35;
+            pointer-events: none;
+        }
+
+        /* =========================
+           STATUS
+        ========================= */
+
+        .status {
+            margin: 10px 16px;
+            padding: 10px 12px;
+            background: #101310;
+            border: 1px solid #222722;
+            border-radius: 10px;
+            color: #8c958e;
+            font-size: 11px;
+        }
+
+        .status.success {
+            color: #35df96;
+        }
+
+        .status.error {
+            color: #ff7777;
+        }
+
+        /* =========================
+           MAP
+        ========================= */
+
+        #map {
+            width: 100%;
+            height: 430px;
+            background: #101312;
+            border-top: 1px solid #202420;
+            border-bottom: 1px solid #202420;
+        }
+
+        /* =========================
+           RESULTS
+        ========================= */
+
+        .results-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 16px 8px;
+        }
+
+        .results-header h2 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .count {
+            color: #31db91;
+            font-size: 11px;
+        }
+
+        .places {
+            padding: 0 16px 25px;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        /* =========================
+           CARD
+        ========================= */
+
+        .place-card {
+            background: #121512;
+            border: 1px solid #242924;
+            border-radius: 13px;
+            padding: 13px;
+            min-width: 0;
+            transition: .2s;
+        }
+
+        .place-card:hover {
+            border-color: #276a4b;
+            transform: translateY(-1px);
+        }
+
+        .place-top {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .place-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 11px;
+            background: #193326;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            font-size: 21px;
+        }
+
+        .place-info {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .place-name {
+            font-size: 14px;
+            font-weight: 800;
+            line-height: 1.3;
+            word-break: break-word;
+        }
+
+        .place-type {
+            margin-top: 4px;
+            color: #36d991;
+            font-size: 10px;
+        }
+
+        .favorite {
+            width: 31px;
+            height: 31px;
+            border-radius: 9px;
+            background: #1b1f1c;
+            color: #777;
+            font-size: 16px;
+            flex: 0 0 auto;
+        }
+
+        .favorite.active {
+            color: #ff5d79;
+        }
+
+        .place-address {
+            margin-top: 10px;
+            color: #8b928d;
+            font-size: 10px;
+            line-height: 1.45;
+            min-height: 29px;
+        }
+
+        .place-distance {
+            margin-top: 8px;
+            color: #31db91;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .place-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 11px;
+        }
+
+        .place-actions button {
+            flex: 1;
+            min-width: 0;
+            padding: 8px 5px;
+            border-radius: 8px;
+            font-size: 10px;
+            color: #bbb;
+            background: #1b201c;
+            border: 1px solid #292e2a;
+        }
+
+        .place-actions button:hover {
+            color: #fff;
+            background: #252b26;
+        }
+
+        .place-actions .direction {
+            background: #163b2a;
+            color: #37dd95;
+            border-color: #235d43;
+        }
+
+        /* =========================
+           EMPTY
+        ========================= */
+
+        .empty {
+            padding: 50px 20px;
+            text-align: center;
+            color: #777;
+            grid-column: 1 / -1;
+        }
+
+        .empty-icon {
+            font-size: 35px;
+            margin-bottom: 10px;
+        }
+
+        .empty h3 {
+            margin: 0 0 7px;
+            color: #aaa;
+            font-size: 15px;
+        }
+
+        .empty p {
+            margin: 0 auto;
+            max-width: 400px;
+            line-height: 1.5;
+            font-size: 11px;
+        }
+
+        /* =========================
+           LOADING
+        ========================= */
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 30px;
+            color: #888;
+            grid-column: 1 / -1;
+            font-size: 12px;
+        }
+
+        .spinner {
+            width: 17px;
+            height: 17px;
+            border: 2px solid #333;
+            border-top-color: #22d68a;
+            border-radius: 50%;
+            animation: spin .8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* =========================
+           POPUP
+        ========================= */
+
+        .leaflet-popup-content-wrapper,
+        .leaflet-popup-tip {
+            background: #121512;
+            color: #fff;
+        }
+
+        .leaflet-popup-content {
+            margin: 12px;
+        }
+
+        .popup-title {
+            font-weight: 800;
+            margin-bottom: 5px;
+        }
+
+        .popup-type {
+            color: #31db91;
+            font-size: 11px;
+            margin-bottom: 5px;
+        }
+
+        .popup-address {
+            color: #aaa;
+            font-size: 10px;
+            line-height: 1.4;
+        }
+
+        .popup-distance {
+            color: #31db91;
+            margin-top: 5px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .popup-direction {
+            display: inline-block;
+            margin-top: 9px;
+            padding: 7px 9px;
+            background: #20c982;
+            color: #04150d;
+            border-radius: 7px;
+            text-decoration: none;
+            font-size: 10px;
+            font-weight: 800;
+        }
+
+        /* =========================
+           FOOTER
+        ========================= */
+
+        footer {
+            padding: 20px 16px;
+            border-top: 1px solid #202420;
+            color: #666;
+            text-align: center;
+            font-size: 10px;
+        }
+
+        /* =========================
+           MOBILE
+        ========================= */
+
+        @media (max-width: 900px) {
+            .places {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 600px) {
+
+            header {
+                padding: 13px 11px 10px;
+            }
+
+            .brand-left h1 {
+                font-size: 20px;
+            }
+
+            .brand-left p {
+                font-size: 10px;
+            }
+
+            .gps-status {
+                font-size: 9px;
+                padding: 7px 8px;
+            }
+
+            .search-area {
+                margin-top: 11px;
+            }
+
+            .search-box input {
+                height: 40px;
+            }
+
+            .btn {
+                height: 40px;
+                padding: 0 11px;
+            }
+
+            .status {
+                margin: 8px 10px;
+            }
+
+            #map {
+                height: 370px;
+            }
+
+            .results-header {
+                padding-left: 11px;
+                padding-right: 11px;
+            }
+
+            .places {
+                padding: 0 10px 20px;
+                grid-template-columns: 1fr;
+            }
+
+            .place-card {
+                padding: 12px;
+            }
+        }
+    </style>
 </head>
+
 <body>
 
-<header>
-  <div class="logo">Nangkring<span>Aceh</span></div>
-  <div class="subtitle">Temukan tempat nongkrong keren di seluruh Aceh</div>
+<div class="app">
 
-  <div class="search-area">
-    <input id="search" class="search" type="text"
-      placeholder="Cari kopi, cafe, restoran...">
-    <button class="location-btn" id="locationBtn" title="Lokasi saya">📍</button>
-  </div>
-</header>
+    <!-- HEADER -->
+    <header>
 
-<div class="filters">
-  <button class="filter active" data-type="all">🔥 Semua</button>
-  <button class="filter" data-type="coffee">☕ Coffee</button>
-  <button class="filter" data-type="cafe">☕ Cafe</button>
-  <button class="filter" data-type="restaurant">🍜 Restoran</button>
-  <button class="filter" data-type="fast_food">🍔 Fast Food</button>
-  <button class="filter" data-type="bar">🍹 Bar</button>
-  <button class="filter" data-type="tourism">🌴 Wisata</button>
+        <div class="brand">
+
+            <div class="brand-left">
+
+                <h1>🍵 NangkringAceh</h1>
+
+                <p>
+                    Temukan tempat nongkrong keren di seluruh Aceh
+                </p>
+
+            </div>
+
+            <div class="gps-status">
+
+                <span
+                    id="gpsDot"
+                    class="gps-dot"
+                ></span>
+
+                <span id="gpsText">
+                    Mencari lokasi...
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <!-- SEARCH -->
+
+        <div class="search-area">
+
+            <div class="search-box">
+
+                <input
+                    type="text"
+                    id="searchInput"
+                    placeholder="Cari kopi, cafe, restoran..."
+                    autocomplete="off"
+                >
+
+                <span class="search-icon">
+                    ⌕
+                </span>
+
+            </div>
+
+
+            <button
+                class="btn btn-green"
+                onclick="refreshSearch()"
+                title="Refresh"
+            >
+                🔄
+            </button>
+
+
+            <button
+                class="btn"
+                onclick="locateUser()"
+                title="Lokasi saya"
+            >
+                📍
+            </button>
+
+        </div>
+
+
+        <!-- MODE -->
+
+        <div class="mode-area">
+
+            <button
+                class="mode-btn active"
+                id="modeNearby"
+                onclick="setMode('nearby')"
+            >
+                📍 Sekitar Saya
+            </button>
+
+
+            <button
+                class="mode-btn"
+                id="modeAceh"
+                onclick="setMode('aceh')"
+            >
+                🗺️ Seluruh Aceh
+            </button>
+
+
+            <button
+                class="mode-btn"
+                id="modeFavorite"
+                onclick="setMode('favorite')"
+            >
+                ❤️ Favorit
+            </button>
+
+        </div>
+
+
+        <!-- FILTER -->
+
+        <div class="filter-area">
+
+            <button
+                class="filter-btn active"
+                data-filter="all"
+                onclick="setFilter('all', this)"
+            >
+                Semua
+            </button>
+
+
+            <button
+                class="filter-btn"
+                data-filter="cafe"
+                onclick="setFilter('cafe', this)"
+            >
+                ☕ Cafe
+            </button>
+
+
+            <button
+                class="filter-btn"
+                data-filter="coffee"
+                onclick="setFilter('coffee', this)"
+            >
+                🍵 Kopi
+            </button>
+
+
+            <button
+                class="filter-btn"
+                data-filter="restaurant"
+                onclick="setFilter('restaurant', this)"
+            >
+                🍛 Restoran
+            </button>
+
+
+            <button
+                class="filter-btn"
+                data-filter="fast_food"
+                onclick="setFilter('fast_food', this)"
+            >
+                🍔 Fast Food
+            </button>
+
+        </div>
+
+
+        <!-- RADIUS -->
+
+        <div
+            class="radius-area"
+            id="radiusArea"
+        >
+
+            <span class="radius-label">
+                Radius:
+            </span>
+
+
+            <button
+                class="radius-btn active"
+                data-radius="1"
+                onclick="setRadius(1, this)"
+            >
+                1 km
+            </button>
+
+
+            <button
+                class="radius-btn"
+                data-radius="3"
+                onclick="setRadius(3, this)"
+            >
+                3 km
+            </button>
+
+
+            <button
+                class="radius-btn"
+                data-radius="5"
+                onclick="setRadius(5, this)"
+            >
+                5 km
+            </button>
+
+
+            <button
+                class="radius-btn"
+                data-radius="10"
+                onclick="setRadius(10, this)"
+            >
+                10 km
+            </button>
+
+        </div>
+
+    </header>
+
+
+    <!-- STATUS -->
+
+    <div
+        id="status"
+        class="status"
+    >
+        📍 Sedang mencari lokasi kamu...
+    </div>
+
+
+    <!-- MAP -->
+
+    <div id="map"></div>
+
+
+    <!-- RESULT HEADER -->
+
+    <div class="results-header">
+
+        <h2>
+            📌 Tempat Nongkrong
+        </h2>
+
+        <span
+            class="count"
+            id="resultCount"
+        >
+            0 tempat
+        </span>
+
+    </div>
+
+
+    <!-- PLACES -->
+
+    <div
+        class="places"
+        id="places"
+    >
+
+        <div class="loading">
+
+            <div class="spinner"></div>
+
+            Mencari tempat...
+
+        </div>
+
+    </div>
+
+
+    <!-- FOOTER -->
+
+    <footer>
+
+        Data tempat bersumber dari
+        OpenStreetMap.
+
+        <br>
+
+        © OpenStreetMap contributors
+
+    </footer>
+
 </div>
 
-<div id="map"></div>
 
-<div class="status" id="status">🔄 Menghubungkan ke database tempat...</div>
-
-<div class="section">
-  <div class="section-top">
-    <h2>🔥 Tempat di Aceh</h2>
-    <div class="count" id="count">0 tempat</div>
-  </div>
-</div>
-
-<div class="places" id="places">
-  <div class="loading">🔄 Mengambil data tempat di seluruh Aceh...</div>
-</div>
-
-<div class="footer">
-  Data tempat berasal dari OpenStreetMap.<br>
-  NangkringAceh • Jelajah Aceh
-</div>
+<!-- LEAFLET -->
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="script.js"></script>
+
+
+<!-- MARKER CLUSTER -->
+
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+
+<script>
+
+/* =========================================================
+   NANGKRINGACEH V3 FINAL
+
+   FRONTEND
+   ↓
+   NETLIFY FUNCTION
+   ↓
+   OVERPASS / OPENSTREETMAP
+========================================================= */
+
+
+/* =========================
+   STATE
+========================= */
+
+let map = null;
+
+let markerCluster = null;
+
+let userMarker = null;
+
+let accuracyCircle = null;
+
+let userLocation = null;
+
+let allPlaces = [];
+
+let currentMode = "nearby";
+
+let currentFilter = "all";
+
+let currentRadius = 1;
+
+let isLoading = false;
+
+let favorites = [];
+
+
+/* =========================
+   LOAD FAVORITES
+========================= */
+
+try {
+
+    favorites = JSON.parse(
+        localStorage.getItem(
+            "nangkringaceh_favorites"
+        ) || "[]"
+    );
+
+    if (!Array.isArray(favorites)) {
+        favorites = [];
+    }
+
+} catch (error) {
+
+    favorites = [];
+
+}
+
+
+/* =========================
+   INIT
+========================= */
+
+function init() {
+
+    initMap();
+
+    bindSearch();
+
+    requestLocation();
+
+}
+
+
+/* =========================
+   MAP
+========================= */
+
+function initMap() {
+
+    map = L.map(
+        "map",
+        {
+            zoomControl: true
+        }
+    ).setView(
+        [4.6951, 96.7494],
+        7
+    );
+
+
+    L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+            maxZoom: 19,
+
+            attribution:
+                "&copy; OpenStreetMap contributors"
+        }
+    ).addTo(map);
+
+
+    markerCluster =
+        L.markerClusterGroup({
+
+            showCoverageOnHover: false,
+
+            maxClusterRadius: 45,
+
+            spiderfyOnMaxZoom: true,
+
+            removeOutsideVisibleBounds: true
+
+        });
+
+
+    map.addLayer(
+        markerCluster
+    );
+
+}
+
+
+/* =========================
+   GEOLOCATION
+========================= */
+
+function requestLocation() {
+
+    if (!navigator.geolocation) {
+
+        setGPSStatus(
+            false,
+            "GPS tidak tersedia"
+        );
+
+        setStatus(
+            "⚠️ Browser tidak mendukung GPS.",
+            "error"
+        );
+
+        showDefaultAceh();
+
+        if (
+            currentMode === "aceh"
+        ) {
+
+            loadAllAceh();
+
+        }
+
+        return;
+    }
+
+
+    setStatus(
+        "📍 Meminta izin lokasi..."
+    );
+
+
+    navigator.geolocation.getCurrentPosition(
+
+        function(position) {
+
+            userLocation = {
+
+                lat:
+                    position.coords.latitude,
+
+                lon:
+                    position.coords.longitude,
+
+                accuracy:
+                    position.coords.accuracy || 50
+
+            };
+
+
+            setGPSStatus(
+                true,
+                "Lokasi ditemukan"
+            );
+
+
+            showUserLocation();
+
+
+            if (
+                currentMode === "nearby"
+            ) {
+
+                map.setView(
+                    [
+                        userLocation.lat,
+                        userLocation.lon
+                    ],
+                    15
+                );
+
+
+                loadNearby();
+
+            }
+
+            else if (
+                currentMode === "aceh"
+            ) {
+
+                loadAllAceh();
+
+            }
+
+            else {
+
+                renderPlaces();
+
+            }
+
+        },
+
+        function(error) {
+
+            console.warn(
+                "GPS Error:",
+                error
+            );
+
+
+            userLocation = null;
+
+
+            setGPSStatus(
+                false,
+                "Lokasi belum tersedia"
+            );
+
+
+            showDefaultAceh();
+
+
+            if (error.code === 1) {
+
+                setStatus(
+                    "⚠️ Izin lokasi ditolak. Mode Seluruh Aceh tetap bisa digunakan.",
+                    "error"
+                );
+
+            }
+
+            else {
+
+                setStatus(
+                    "⚠️ Lokasi tidak ditemukan. Pilih Seluruh Aceh atau coba 📍 lagi.",
+                    "error"
+                );
+
+            }
+
+
+            if (
+                currentMode === "aceh"
+            ) {
+
+                loadAllAceh();
+
+            }
+
+        },
+
+        {
+
+            enableHighAccuracy: true,
+
+            timeout: 15000,
+
+            maximumAge: 60000
+
+        }
+
+    );
+
+}
+
+
+/* =========================
+   SHOW USER
+========================= */
+
+function showUserLocation() {
+
+    if (!userLocation) {
+        return;
+    }
+
+
+    if (userMarker) {
+
+        map.removeLayer(
+            userMarker
+        );
+
+    }
+
+
+    if (accuracyCircle) {
+
+        map.removeLayer(
+            accuracyCircle
+        );
+
+    }
+
+
+    userMarker =
+        L.marker(
+            [
+                userLocation.lat,
+                userLocation.lon
+            ]
+        )
+        .addTo(map)
+        .bindPopup(
+            "<b>📍 Lokasi Kamu</b><br>" +
+            "Digunakan untuk menghitung jarak tempat."
+        );
+
+
+    accuracyCircle =
+        L.circle(
+            [
+                userLocation.lat,
+                userLocation.lon
+            ],
+            {
+
+                radius:
+                    Math.min(
+                        userLocation.accuracy || 50,
+                        1000
+                    ),
+
+                color:
+                    "#22d68a",
+
+                fillColor:
+                    "#22d68a",
+
+                fillOpacity:
+                    0.08,
+
+                weight:
+                    1
+
+            }
+        )
+        .addTo(map);
+
+}
+
+
+/* =========================
+   DEFAULT ACEH
+========================= */
+
+function showDefaultAceh() {
+
+    map.setView(
+        [4.6951, 96.7494],
+        7
+    );
+
+}
+
+
+/* =========================
+   LOCATE
+========================= */
+
+function locateUser() {
+
+    requestLocation();
+
+}
+
+
+/* =========================
+   MODE
+========================= */
+
+function setMode(mode) {
+
+    currentMode = mode;
+
+
+    document
+        .getElementById("modeNearby")
+        .classList.toggle(
+            "active",
+            mode === "nearby"
+        );
+
+
+    document
+        .getElementById("modeAceh")
+        .classList.toggle(
+            "active",
+            mode === "aceh"
+        );
+
+
+    document
+        .getElementById("modeFavorite")
+        .classList.toggle(
+            "active",
+            mode === "favorite"
+        );
+
+
+    const radiusArea =
+        document.getElementById(
+            "radiusArea"
+        );
+
+
+    if (
+        mode === "nearby"
+    ) {
+
+        radiusArea.classList.remove(
+            "disabled"
+        );
+
+
+        if (userLocation) {
+
+            loadNearby();
+
+        }
+
+        else {
+
+            requestLocation();
+
+        }
+
+    }
+
+
+    else if (
+        mode === "aceh"
+    ) {
+
+        radiusArea.classList.add(
+            "disabled"
+        );
+
+
+        loadAllAceh();
+
+    }
+
+
+    else {
+
+        radiusArea.classList.add(
+            "disabled"
+        );
+
+
+        renderPlaces();
+
+    }
+
+}
+
+
+/* =========================
+   RADIUS
+========================= */
+
+function setRadius(
+    radius,
+    button
+) {
+
+    currentRadius =
+        Number(radius);
+
+
+    document
+        .querySelectorAll(
+            ".radius-btn"
+        )
+        .forEach(
+            function(btn) {
+
+                btn.classList.remove(
+                    "active"
+                );
+
+            }
+        );
+
+
+    button.classList.add(
+        "active"
+    );
+
+
+    if (
+        currentMode === "nearby"
+    ) {
+
+        if (userLocation) {
+
+            loadNearby();
+
+        }
+
+        else {
+
+            requestLocation();
+
+        }
+
+    }
+
+}
+
+
+/* =========================
+   FILTER
+========================= */
+
+function setFilter(
+    filter,
+    button
+) {
+
+    currentFilter =
+        filter;
+
+
+    document
+        .querySelectorAll(
+            ".filter-btn"
+        )
+        .forEach(
+            function(btn) {
+
+                btn.classList.remove(
+                    "active"
+                );
+
+            }
+        );
+
+
+    button.classList.add(
+        "active"
+    );
+
+
+    renderPlaces();
+
+}
+
+
+/* =========================
+   SEARCH
+========================= */
+
+function bindSearch() {
+
+    const input =
+        document.getElementById(
+            "searchInput"
+        );
+
+
+    input.addEventListener(
+        "input",
+        function() {
+
+            renderPlaces();
+
+        }
+    );
+
+}
+
+
+/* =========================
+   REFRESH
+========================= */
+
+function refreshSearch() {
+
+    if (
+        currentMode === "nearby"
+    ) {
+
+        if (userLocation) {
+
+            loadNearby();
+
+        }
+
+        else {
+
+            requestLocation();
+
+        }
+
+    }
+
+    else if (
+        currentMode === "aceh"
+    ) {
+
+        loadAllAceh();
+
+    }
+
+    else {
+
+        renderPlaces();
+
+    }
+
+}
+
+
+/* =========================================================
+   API CALL KE NETLIFY FUNCTION
+========================================================= */
+
+async function fetchPlaces(params) {
+
+    const query =
+        new URLSearchParams(
+            params
+        );
+
+
+    const response =
+        await fetch(
+            "/.netlify/functions/places?" +
+            query.toString(),
+            {
+
+                method: "GET",
+
+                headers: {
+                    "Accept":
+                        "application/json"
+                }
+
+            }
+        );
+
+
+    if (!response.ok) {
+
+        let message =
+            "Server gagal mengambil data.";
+
+        try {
+
+            const errorData =
+                await response.json();
+
+            if (
+                errorData &&
+                errorData.error
+            ) {
+
+                message =
+                    errorData.error;
+
+            }
+
+        } catch (_) {}
+
+
+        throw new Error(
+            message
+        );
+
+    }
+
+
+    const data =
+        await response.json();
+
+
+    if (
+        !data ||
+        !Array.isArray(
+            data.elements
+        )
+    ) {
+
+        throw new Error(
+            "Format data server tidak valid."
+        );
+
+    }
+
+
+    return data.elements;
+
+}
+
+
+/* =========================================================
+   LOAD NEARBY
+========================================================= */
+
+async function loadNearby() {
+
+    if (!userLocation) {
+
+        setStatus(
+            "📍 Lokasi belum ditemukan.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    if (isLoading) {
+        return;
+    }
+
+
+    isLoading = true;
+
+
+    showLoading();
+
+
+    setStatus(
+        `🔎 Mencari tempat dalam radius ${currentRadius} km...`
+    );
+
+
+    try {
+
+        const elements =
+            await fetchPlaces({
+
+                mode:
+                    "nearby",
+
+                lat:
+                    userLocation.lat,
+
+                lon:
+                    userLocation.lon,
+
+                radius:
+                    currentRadius
+
+            });
+
+
+        allPlaces =
+            normalizePlaces(
+                elements
+            );
+
+
+        allPlaces =
+            allPlaces.filter(
+                function(place) {
+
+                    return (
+                        place.distance !== null &&
+                        place.distance <=
+                        currentRadius
+                    );
+
+                }
+            );
+
+
+        allPlaces.sort(
+            function(a, b) {
+
+                return (
+                    a.distance -
+                    b.distance
+                );
+
+            }
+        );
+
+
+        renderMarkers();
+
+        renderPlaces();
+
+
+        setStatus(
+            `✅ Ditemukan ${allPlaces.length} tempat dalam radius ${currentRadius} km.`,
+            "success"
+        );
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Nearby error:",
+            error
+        );
+
+
+        allPlaces = [];
+
+
+        renderMarkers();
+
+        renderPlaces();
+
+
+        setStatus(
+            "❌ Gagal mengambil data. Coba tekan 🔄 lagi.",
+            "error"
+        );
+
+    }
+
+    finally {
+
+        isLoading = false;
+
+    }
+
+}
+
+
+/* =========================================================
+   LOAD SELURUH ACEH
+========================================================= */
+
+async function loadAllAceh() {
+
+    if (isLoading) {
+        return;
+    }
+
+
+    isLoading = true;
+
+
+    showLoading();
+
+
+    setStatus(
+        "🗺️ Sedang mengambil data tempat di seluruh Aceh..."
+    );
+
+
+    try {
+
+        const elements =
+            await fetchPlaces({
+
+                mode:
+                    "aceh"
+
+            });
+
+
+        allPlaces =
+            normalizePlaces(
+                elements
+            );
+
+
+        if (userLocation) {
+
+            allPlaces.forEach(
+                function(place) {
+
+                    place.distance =
+                        calculateDistance(
+                            userLocation.lat,
+                            userLocation.lon,
+                            place.lat,
+                            place.lon
+                        );
+
+                }
+            );
+
+
+            allPlaces.sort(
+                function(a, b) {
+
+                    return (
+                        a.distance -
+                        b.distance
+                    );
+
+                }
+            );
+
+        }
+
+        else {
+
+            allPlaces.sort(
+                function(a, b) {
+
+                    return a.name.localeCompare(
+                        b.name
+                    );
+
+                }
+            );
+
+        }
+
+
+        renderMarkers();
+
+        renderPlaces();
+
+
+        setStatus(
+            `🗺️ Berhasil menemukan ${allPlaces.length} tempat di seluruh Aceh.`,
+            "success"
+        );
+
+
+        if (
+            allPlaces.length > 0 &&
+            !userLocation
+        ) {
+
+            fitPlacesBounds();
+
+        }
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Aceh error:",
+            error
+        );
+
+
+        allPlaces = [];
+
+
+        renderMarkers();
+
+        renderPlaces();
+
+
+        setStatus(
+            "❌ Data seluruh Aceh gagal diambil. Tekan 🔄 untuk mencoba lagi.",
+            "error"
+        );
+
+    }
+
+    finally {
+
+        isLoading = false;
+
+    }
+
+}
+
+
+/* =========================================================
+   NORMALIZE
+========================================================= */
+
+function normalizePlaces(
+    elements
+) {
+
+    const result = [];
+
+    const seen = new Set();
+
+
+    elements.forEach(
+        function(el) {
+
+            const key =
+                el.type +
+                "_" +
+                el.id;
+
+
+            if (
+                seen.has(key)
+            ) {
+
+                return;
+
+            }
+
+
+            seen.add(key);
+
+
+            const tags =
+                el.tags || {};
+
+
+            const lat =
+                Number(
+                    el.lat ??
+                    el.center?.lat
+                );
+
+
+            const lon =
+                Number(
+                    el.lon ??
+                    el.center?.lon
+                );
+
+
+            if (
+                !Number.isFinite(lat) ||
+                !Number.isFinite(lon)
+            ) {
+
+                return;
+
+            }
+
+
+            const category =
+                getCategory(
+                    tags
+                );
+
+
+            const name =
+                cleanName(
+                    tags.name ||
+                    tags["name:id"] ||
+                    "Tempat tanpa nama"
+                );
+
+
+            const address =
+                buildAddress(
+                    tags
+                );
+
+
+            let distance =
+                null;
+
+
+            if (
+                userLocation
+            ) {
+
+                distance =
+                    calculateDistance(
+                        userLocation.lat,
+                        userLocation.lon,
+                        lat,
+                        lon
+                    );
+
+            }
+
+
+            result.push({
+
+                id:
+                    key,
+
+                osmId:
+                    el.id,
+
+                osmType:
+                    el.type,
+
+                name:
+                    name,
+
+                category:
+                    category,
+
+                address:
+                    address,
+
+                lat:
+                    lat,
+
+                lon:
+                    lon,
+
+                distance:
+                    distance,
+
+                tags:
+                    tags
+
+            });
+
+        }
+    );
+
+
+    return result;
+
+}
+
+
+/* =========================================================
+   CATEGORY
+========================================================= */
+
+function getCategory(tags) {
+
+    const amenity =
+        tags.amenity || "";
+
+
+    const shop =
+        tags.shop || "";
+
+
+    if (
+        amenity === "cafe"
+    ) {
+
+        return "cafe";
+
+    }
+
+
+    if (
+        amenity === "coffee_shop" ||
+        shop === "coffee"
+    ) {
+
+        return "coffee";
+
+    }
+
+
+    if (
+        amenity === "restaurant"
+    ) {
+
+        return "restaurant";
+
+    }
+
+
+    if (
+        amenity === "fast_food"
+    ) {
+
+        return "fast_food";
+
+    }
+
+
+    return "other";
+
+}
+
+
+/* =========================================================
+   CATEGORY LABEL
+========================================================= */
+
+function categoryLabel(
+    category
+) {
+
+    const labels = {
+
+        cafe:
+            "☕ Cafe",
+
+        coffee:
+            "🍵 Kedai Kopi",
+
+        restaurant:
+            "🍛 Restoran",
+
+        fast_food:
+            "🍔 Fast Food",
+
+        other:
+            "📍 Tempat"
+
+    };
+
+
+    return (
+        labels[category] ||
+        labels.other
+    );
+
+}
+
+
+/* =========================================================
+   ICON
+========================================================= */
+
+function categoryIcon(
+    category
+) {
+
+    const icons = {
+
+        cafe:
+            "☕",
+
+        coffee:
+            "🍵",
+
+        restaurant:
+            "🍛",
+
+        fast_food:
+            "🍔",
+
+        other:
+            "📍"
+
+    };
+
+
+    return (
+        icons[category] ||
+        icons.other
+    );
+
+}
+
+
+/* =========================================================
+   ADDRESS
+========================================================= */
+
+function buildAddress(tags) {
+
+    const parts = [];
+
+
+    const fields = [
+
+        "addr:housenumber",
+
+        "addr:street",
+
+        "addr:place",
+
+        "addr:suburb",
+
+        "addr:neighbourhood",
+
+        "addr:village",
+
+        "addr:town",
+
+        "addr:city",
+
+        "addr:county",
+
+        "addr:state"
+
+    ];
+
+
+    fields.forEach(
+        function(field) {
+
+            if (
+                tags[field] &&
+                !parts.includes(
+                    tags[field]
+                )
+            ) {
+
+                parts.push(
+                    tags[field]
+                );
+
+            }
+
+        }
+    );
+
+
+    if (
+        parts.length > 0
+    ) {
+
+        return parts.join(
+            ", "
+        );
+
+    }
+
+
+    return "Alamat belum tersedia";
+
+}
+
+
+/* =========================================================
+   CLEAN NAME
+========================================================= */
+
+function cleanName(name) {
+
+    return String(name)
+        .replace(
+            /\s+/g,
+            " "
+        )
+        .trim();
+
+}
+
+
+/* =========================================================
+   DISTANCE
+========================================================= */
+
+function calculateDistance(
+    lat1,
+    lon1,
+    lat2,
+    lon2
+) {
+
+    const R =
+        6371;
+
+
+    const dLat =
+        toRadians(
+            lat2 - lat1
+        );
+
+
+    const dLon =
+        toRadians(
+            lon2 - lon1
+        );
+
+
+    const a =
+        Math.sin(
+            dLat / 2
+        ) *
+        Math.sin(
+            dLat / 2
+        ) +
+
+        Math.cos(
+            toRadians(lat1)
+        ) *
+
+        Math.cos(
+            toRadians(lat2)
+        ) *
+
+        Math.sin(
+            dLon / 2
+        ) *
+
+        Math.sin(
+            dLon / 2
+        );
+
+
+    const c =
+        2 *
+        Math.atan2(
+            Math.sqrt(a),
+            Math.sqrt(1 - a)
+        );
+
+
+    return R * c;
+
+}
+
+
+function toRadians(value) {
+
+    return (
+        value *
+        Math.PI /
+        180
+    );
+
+}
+
+
+/* =========================================================
+   MARKERS
+========================================================= */
+
+function renderMarkers() {
+
+    if (!markerCluster) {
+        return;
+    }
+
+
+    markerCluster.clearLayers();
+
+
+    allPlaces.forEach(
+        function(place) {
+
+            const marker =
+                L.marker(
+                    [
+                        place.lat,
+                        place.lon
+                    ]
+                );
+
+
+            let distanceText =
+                "";
+
+
+            if (
+                place.distance !== null &&
+                Number.isFinite(
+                    place.distance
+                )
+            ) {
+
+                distanceText = `
+                    <div class="popup-distance">
+                        📏 ${formatDistance(place.distance)}
+                    </div>
+                `;
+
+            }
+
+
+            const safeName =
+                escapeHTML(
+                    place.name
+                );
+
+
+            const safeAddress =
+                escapeHTML(
+                    place.address
+                );
+
+
+            const googleMaps =
+                getGoogleMapsUrl(
+                    place
+                );
+
+
+            marker.bindPopup(`
+
+                <div class="popup-title">
+                    ${categoryIcon(place.category)}
+                    ${safeName}
+                </div>
+
+                <div class="popup-type">
+                    ${categoryLabel(place.category)}
+                </div>
+
+                <div class="popup-address">
+                    ${safeAddress}
+                </div>
+
+                ${distanceText}
+
+                <a
+                    class="popup-direction"
+                    href="${googleMaps}"
+                    target="_blank"
+                    rel="noopener"
+                >
+                    🧭 Arah
+                </a>
+
+            `);
+
+
+            markerCluster.addLayer(
+                marker
+            );
+
+        }
+    );
+
+}
+
+
+/* =========================================================
+   RENDER CARDS
+========================================================= */
+
+function renderPlaces() {
+
+    const container =
+        document.getElementById(
+            "places"
+        );
+
+
+    const count =
+        document.getElementById(
+            "resultCount"
+        );
+
+
+    const input =
+        document.getElementById(
+            "searchInput"
+        );
+
+
+    const query =
+        input.value
+            .trim()
+            .toLowerCase();
+
+
+    let places =
+        [...allPlaces];
+
+
+    /* FAVORITE */
+
+    if (
+        currentMode === "favorite"
+    ) {
+
+        places =
+            places.filter(
+                function(place) {
+
+                    return isFavorite(
+                        place.id
+                    );
+
+                }
+            );
+
+    }
+
+
+    /* FILTER */
+
+    if (
+        currentFilter !== "all"
+    ) {
+
+        places =
+            places.filter(
+                function(place) {
+
+                    return (
+                        place.category ===
+                        currentFilter
+                    );
+
+                }
+            );
+
+    }
+
+
+    /* SEARCH */
+
+    if (query) {
+
+        places =
+            places.filter(
+                function(place) {
+
+                    return (
+
+                        place.name
+                            .toLowerCase()
+                            .includes(query)
+
+                        ||
+
+                        place.address
+                            .toLowerCase()
+                            .includes(query)
+
+                    );
+
+                }
+            );
+
+    }
+
+
+    count.textContent =
+        places.length +
+        " tempat";
+
+
+    /*
+       Batasi kartu supaya HP
+       tidak berat.
+    */
+
+    const displayPlaces =
+        places.slice(
+            0,
+            300
+        );
+
+
+    if (
+        displayPlaces.length === 0
+    ) {
+
+        container.innerHTML = `
+
+            <div class="empty">
+
+                <div class="empty-icon">
+                    😕
+                </div>
+
+                <h3>
+                    Tidak ada tempat ditemukan
+                </h3>
+
+                <p>
+                    Coba ganti pencarian,
+                    filter, radius,
+                    atau pilih mode
+                    Seluruh Aceh.
+                </p>
+
+            </div>
+
+        `;
+
+        return;
+
+    }
+
+
+    container.innerHTML =
+        displayPlaces
+            .map(
+                function(place) {
+
+                    return createPlaceCard(
+                        place
+                    );
+
+                }
+            )
+            .join("");
+
+}
+
+
+/* =========================================================
+   CARD
+========================================================= */
+
+function createPlaceCard(
+    place
+) {
+
+    const favorite =
+        isFavorite(
+            place.id
+        );
+
+
+    const distance =
+        place.distance !== null &&
+        Number.isFinite(
+            place.distance
+        )
+            ? formatDistance(
+                place.distance
+            )
+            : "Jarak tidak tersedia";
+
+
+    const safeName =
+        escapeHTML(
+            place.name
+        );
+
+
+    const safeAddress =
+        escapeHTML(
+            place.address
+        );
+
+
+    return `
+
+        <div class="place-card">
+
+            <div class="place-top">
+
+                <div class="place-icon">
+                    ${categoryIcon(place.category)}
+                </div>
+
+                <div class="place-info">
+
+                    <div class="place-name">
+                        ${safeName}
+                    </div>
+
+                    <div class="place-type">
+                        ${categoryLabel(place.category)}
+                    </div>
+
+                </div>
+
+                <button
+                    class="favorite ${favorite ? "active" : ""}"
+                    onclick="toggleFavorite('${escapeAttribute(place.id)}')"
+                >
+                    ${favorite ? "♥" : "♡"}
+                </button>
+
+            </div>
+
+
+            <div class="place-address">
+                📍 ${safeAddress}
+            </div>
+
+
+            <div class="place-distance">
+                📏 ${distance}
+            </div>
+
+
+            <div class="place-actions">
+
+                <button
+                    onclick="focusPlace('${escapeAttribute(place.id)}')"
+                >
+                    🗺️ Peta
+                </button>
+
+
+                <button
+                    class="direction"
+                    onclick="openDirections('${escapeAttribute(place.id)}')"
+                >
+                    🧭 Arah
+                </button>
+
+
+                <button
+                    onclick="sharePlace('${escapeAttribute(place.id)}')"
+                >
+                    ↗ Bagikan
+                </button>
+
+            </div>
+
+        </div>
+
+    `;
+
+}
+
+
+/* =========================================================
+   FOCUS
+========================================================= */
+
+function focusPlace(id) {
+
+    const place =
+        allPlaces.find(
+            function(item) {
+
+                return (
+                    item.id === id
+                );
+
+            }
+        );
+
+
+    if (!place) {
+        return;
+    }
+
+
+    map.setView(
+        [
+            place.lat,
+            place.lon
+        ],
+        17
+    );
+
+
+    markerCluster.eachLayer(
+        function(marker) {
+
+            const position =
+                marker.getLatLng();
+
+
+            if (
+                Math.abs(
+                    position.lat -
+                    place.lat
+                ) < 0.000001 &&
+
+                Math.abs(
+                    position.lng -
+                    place.lon
+                ) < 0.000001
+            ) {
+
+                marker.openPopup();
+
+            }
+
+        }
+    );
+
+}
+
+
+/* =========================================================
+   GOOGLE MAPS
+========================================================= */
+
+function getGoogleMapsUrl(
+    place
+) {
+
+    return (
+        "https://www.google.com/maps/dir/?api=1" +
+        "&destination=" +
+        encodeURIComponent(
+            place.lat +
+            "," +
+            place.lon
+        )
+    );
+
+}
+
+
+function openDirections(id) {
+
+    const place =
+        allPlaces.find(
+            function(item) {
+
+                return (
+                    item.id === id
+                );
+
+            }
+        );
+
+
+    if (!place) {
+        return;
+    }
+
+
+    window.open(
+        getGoogleMapsUrl(place),
+        "_blank"
+    );
+
+}
+
+
+/* =========================================================
+   FAVORITES
+========================================================= */
+
+function isFavorite(id) {
+
+    return favorites.includes(
+        id
+    );
+
+}
+
+
+function toggleFavorite(id) {
+
+    if (
+        isFavorite(id)
+    ) {
+
+        favorites =
+            favorites.filter(
+                function(item) {
+
+                    return (
+                        item !== id
+                    );
+
+                }
+            );
+
+    }
+
+    else {
+
+        favorites.push(
+            id
+        );
+
+    }
+
+
+    localStorage.setItem(
+        "nangkringaceh_favorites",
+        JSON.stringify(
+            favorites
+        )
+    );
+
+
+    renderPlaces();
+
+}
+
+
+/* =========================================================
+   SHARE
+========================================================= */
+
+async function sharePlace(id) {
+
+    const place =
+        allPlaces.find(
+            function(item) {
+
+                return (
+                    item.id === id
+                );
+
+            }
+        );
+
+
+    if (!place) {
+        return;
+    }
+
+
+    const mapsUrl =
+        "https://www.google.com/maps/search/?api=1&query=" +
+        encodeURIComponent(
+            place.lat +
+            "," +
+            place.lon
+        );
+
+
+    const text =
+        `${place.name}\n` +
+        `${categoryLabel(place.category)}\n` +
+        `${place.address}\n` +
+        `${mapsUrl}`;
+
+
+    try {
+
+        if (
+            navigator.share
+        ) {
+
+            await navigator.share({
+
+                title:
+                    place.name,
+
+                text:
+                    text
+
+            });
+
+        }
+
+        else if (
+            navigator.clipboard
+        ) {
+
+            await navigator.clipboard.writeText(
+                text
+            );
+
+
+            alert(
+                "Info tempat berhasil disalin."
+            );
+
+        }
+
+    }
+
+    catch (error) {
+
+        console.log(
+            "Share dibatalkan.",
+            error
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   FIT BOUNDS
+========================================================= */
+
+function fitPlacesBounds() {
+
+    if (
+        allPlaces.length === 0
+    ) {
+
+        return;
+
+    }
+
+
+    const bounds =
+        L.latLngBounds(
+            allPlaces.map(
+                function(place) {
+
+                    return [
+                        place.lat,
+                        place.lon
+                    ];
+
+                }
+            )
+        );
+
+
+    if (
+        bounds.isValid()
+    ) {
+
+        map.fitBounds(
+            bounds,
+            {
+
+                padding:
+                    [30, 30],
+
+                maxZoom:
+                    10
+
+            }
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   LOADING
+========================================================= */
+
+function showLoading() {
+
+    const container =
+        document.getElementById(
+            "places"
+        );
+
+
+    container.innerHTML = `
+
+        <div class="loading">
+
+            <div class="spinner"></div>
+
+            Sedang mengambil data tempat...
+
+        </div>
+
+    `;
+
+
+    document.getElementById(
+        "resultCount"
+    ).textContent =
+        "Mencari...";
+
+}
+
+
+/* =========================================================
+   STATUS
+========================================================= */
+
+function setStatus(
+    text,
+    type = ""
+) {
+
+    const element =
+        document.getElementById(
+            "status"
+        );
+
+
+    element.textContent =
+        text;
+
+
+    element.className =
+        "status " +
+        type;
+
+}
+
+
+/* =========================================================
+   GPS STATUS
+========================================================= */
+
+function setGPSStatus(
+    active,
+    text
+) {
+
+    const dot =
+        document.getElementById(
+            "gpsDot"
+        );
+
+
+    const label =
+        document.getElementById(
+            "gpsText"
+        );
+
+
+    dot.classList.toggle(
+        "active",
+        active
+    );
+
+
+    label.textContent =
+        text;
+
+}
+
+
+/* =========================================================
+   FORMAT DISTANCE
+========================================================= */
+
+function formatDistance(
+    distance
+) {
+
+    if (
+        distance === null ||
+        !Number.isFinite(distance)
+    ) {
+
+        return "Jarak tidak tersedia";
+
+    }
+
+
+    if (
+        distance < 1
+    ) {
+
+        return (
+            Math.round(
+                distance * 1000
+            ) +
+            " m"
+        );
+
+    }
+
+
+    return (
+        distance.toFixed(1) +
+        " km"
+    );
+
+}
+
+
+/* =========================================================
+   ESCAPE HTML
+========================================================= */
+
+function escapeHTML(
+    value
+) {
+
+    return String(value)
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+        .replace(
+            /</g,
+            "&lt;"
+        )
+        .replace(
+            />/g,
+            "&gt;"
+        )
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+        .replace(
+            /'/g,
+            "&#039;"
+        );
+
+}
+
+
+function escapeAttribute(
+    value
+) {
+
+    return String(value)
+        .replace(
+            /\\/g,
+            "\\\\"
+        )
+        .replace(
+            /'/g,
+            "\\'"
+        );
+
+}
+
+
+/* =========================================================
+   START
+========================================================= */
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function() {
+
+        init();
+
+    }
+);
+
+</script>
+
 </body>
-</html>
+  </html>
